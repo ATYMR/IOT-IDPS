@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check .
+      - name: Start Mosquitto for the integration test
+        run: docker run -d --name mosquitto -p 1883:1883 eclipse-mosquitto:2.0.20 mosquitto -c /mosquitto-no-auth.conf
+      - name: Unit + integration tests
+        env:
+          IDPS_TEST_BROKER: 127.0.0.1:1883
+        run: pytest -rs
+      - name: ML pipeline smoke test (synthetic data)
+        run: |
+          python -m idps generate-data --windows 1500 --out "$RUNNER_TEMP/d.jsonl"
+          python -m idps train --data "$RUNNER_TEMP/d.jsonl" --model "$RUNNER_TEMP/m.joblib" --report-dir "$RUNNER_TEMP/r" --n-estimators 50
+          python -m idps evaluate --data "$RUNNER_TEMP/d.jsonl" --model "$RUNNER_TEMP/m.joblib" --report-dir "$RUNNER_TEMP/r"
+
+  firmware:
+    name: Firmware (TLS=${{ matrix.tls }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tls: [0, 1]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+      - name: Install PlatformIO
+        run: pip install "platformio>=6.1"
+      - name: Use placeholder secrets
+        run: cp firmware/include/secrets.example.h firmware/include/secrets.h
+      - name: Build ESP32 + ESP8266
+        env:
+          PLATFORMIO_BUILD_FLAGS: -DIDPS_MQTT_USE_TLS=${{ matrix.tls }}
+        run: pio run -d firmware
+      - name: Host-compiled firmware tests against the Python backend
+        if: matrix.tls == 0
+        env:
+          IDPS_ARDUINOJSON_INCLUDE: firmware/.pio/libdeps/esp32dev/ArduinoJson/src
+        run: |
+          pip install -e ".[dev]"
+          pytest -rs tests/test_firmware_host.py tests/test_firmware_consistency.py
+
+  integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No secrets or generated artifacts tracked
+        run: |
+          bad=$(git ls-files | grep -E '(^|/)\.env$|secrets\.h$|\.(pem|key|joblib|bin|elf)$|__pycache__' || true)
+          if [ -n "$bad" ]; then echo "Tracked files that must not be committed:"; echo "$bad"; exit 1; fi
