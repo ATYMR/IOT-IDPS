@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iot-idps"
+version = "0.2.0"
+description = "Telemetry-based intrusion detection and response for ESP32/ESP8266 MQTT nodes"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24,<3",
+    "scikit-learn>=1.3,<2",
+    "joblib>=1.3",
+    "paho-mqtt>=2.0,<3",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "ruff>=0.5"]
+firmware = ["platformio>=6.1"]
+
+[project.scripts]
+idps = "idps.cli:main"
+
+[tool.setuptools]
+packages = ["idps"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["firmware"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S"]
+ignore = [
+    "S101",  # assert is fine in tests and for internal invariants
+    "S603",  # subprocess without shell: argv is validated (see response.py)
+    "S607",  # partial executable path: iptables/netsh resolved via PATH by design
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "B023"]

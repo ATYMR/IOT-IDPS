@@ -1,0 +1,48 @@
+# --- secrets (never commit) ---
+.env
+.env.*
+!.env.example
+firmware/include/secrets.h
+*.pem
+*.key
+*.crt
+!deploy/**/*.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- generated data, models, reports, logs ---
+data/*
+!data/README.md
+models/*
+!models/README.md
+reports/
+logs/
+*.log
+*.jsonl
+*.joblib
+
+# --- PlatformIO / firmware builds ---
+firmware/.pio/
+firmware/.vscode/
+*.bin
+*.elf
+
+# --- editors / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
