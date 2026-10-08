@@ -1,0 +1,14 @@
+# Topic ACLs: each device may only publish its own telemetry/status and read
+# its own command topic. Only the backend may publish commands.
+# With per-device usernames equal to device ids, %u expands to the username.
+
+# Devices (any user that is not the backend)
+pattern write idps/v1/%u/telemetry
+pattern write idps/v1/%u/status
+pattern read  idps/v1/%u/cmd
+
+# Backend
+user idps-backend
+topic read  idps/v1/+/telemetry
+topic read  idps/v1/+/status
+topic write idps/v1/+/cmd
